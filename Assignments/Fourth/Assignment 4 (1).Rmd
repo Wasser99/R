@@ -1,0 +1,306 @@
+---
+title: "Assignment 4"
+html_document: default
+pdf_document: default
+date: "2024-11-11"
+Group3: "Julian Janisch, Hanka Jankovicova, Livia Miclaus, Sofiia Selimova, Bence Zsolt Vízvári"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load important libraries:
+```{r}
+library(dbscan)
+library(cluster)
+```
+
+Read the data:
+```{r}
+rmf <- readRDS("rmf.rds")
+```
+
+## 1. Task
+
+In this first task we will create two types of visualizations: pairs plot and PCA biplot.
+
+
+We first examine the structure of the data:
+```{r}
+summary(rmf)
+str(rmf)
+head(rmf)
+```
+Observations: 
+The dataset consists of 4274 observations and 3 variables.
+
+Variables in detail: 
+
+Frequency: an integer that represents the number of purchases made by each customer
+Monetary.mean: a numeric variable that represents the average amount spent per transaction
+Recency: a numeric variable that indicates the number of days since the last transaction
+
+Summary observations on each variable:
+
+Frequency: has a range from 1 (min) to 128 (max). The low median (3) and quartiles suggest that most customers have a low purchase frequency. We can observe a right-skew distribution because the mean (4.6) is greater than the median (3), suggesting the fact that there are a few high values (up to 128) that represent highly frequent buyers, which are most likely outliers, that pull the mean to the right, while most of the data points are clustered towards the lower end.
+
+
+Monetary.mean: has a range from 0.967 and 6207.670. The median (237.32) and quartiles suggest that most customers spend modest amounts, with 75% of customers averaging up to 365.39 in spending. We have a right-skew distribution indicating that a few high-spending customers are pulling the average upwards. These high-spending customers, with maximum values of 6207.67, are contributing to the skew making a contrast with the majority who have more modest spending patterns.
+
+Recency:ranges from 0 to 373. The minimum recency 0 indicates that some customers made a purchase very recently and the maximum of 373 showing the longest time since a customer's last purchase. With the median at 50, we can observe that half of the customers have made a purchase in the last 50 days. The right-skewed distribution suggests that a few customers have longer gaps between purchases, pulling the mean upwards while most customers are relatively recent buyers.
+
+
+The next step is to create a pairs plot to show the relationship between the variables:
+```{r}
+pairs(rmf, main = "Pairs Plot of the Dataset")
+```
+Interpretation:
+
+Frequency vs. Monetary.mean: This plot illustrates the relationship between how often customers purchase and how much they spend on average. It shows a right-skewed distribution, with most points clustered near the origin, indicating a large number of low-frequency, low-spending customers. A few points are spread further along both axes, suggesting there are some high-frequency, high-spending customers who stand out as potential outliers.
+
+Frequency vs. Recency: This plot illustrates the relationship between how often customers purchase and the time since their last purchase. Most data points are clustered at the lower end of both Frequency and Recency, indicating that many customers purchase infrequently and have made a recent purchase. However, some high-frequency customers appear across a range of Recency values, meaning that while some buy often but haven’t bought in a while, others are more recent buyers. The distribution is right-skewed, with the majority of customers showing low Frequency and Recency values.
+
+Monetary.mean vs. Recency: This plot illustrates the relationship between customers’ average spending and the time since their last purchase. Most customers have low average spending and have made a recent purchase, creating a cluster near the origin. The distribution is right-skewed, with a few high-spending customers pulling the average up, indicating that some customers spend a lot when they do buy. Additionally, there are a few customers with both low spending and high recency, meaning they haven’t bought anything in a long time and don’t spend much when they do.
+
+
+
+
+We perform the Principal Component Analysis (PCA), while scaling the data if the variables are on different scales:
+```{r}
+pca <- princomp(rmf, cor = TRUE)  
+
+# View PCA summary to see variance explained by each component
+summary(pca)
+
+```
+Interpretation: 
+
+Comp.1: Has the highest standard deviation of 1.1535, indicating that it captures the most spread in the data. The Proportion of Variance is also the highest among all the components with a value of  0.4435 , meaning it explains 44.35% of the variance 
+
+Comp.2: Has a standard deviation of 1.0049, which is slightly lower than Comp.1, meaning it captures a bit less spread in the data. Its Proportion of Variance is 0.3366, so it explains 33.66% of the variance, making it the second most important component in terms of variance captured. The Cumulative Proportion for Comp.1 and Comp.2 together is 0.7801, meaning they togheter explain 78.01% of the variance in the data
+
+Comp.3: Has a standard deviation of 0.8122, the lowest among the three components, indicating it captures the least spread in the data. Its Proportion of Variance is 0.2199, so it explains 21.99% of the variance. Adding Comp.3 brings the Cumulative Proportion to 1.0000, meaning all three components together explain 100% of the variance in the data
+
+Conclusion: 
+
+The first two components, Comp.1 and Comp.2, capture 78.01% of the total variance, meaning they represent most of the main patterns in the data. Comp.1 alone explains 44.35% of the variance, making it the most important component, while Comp.2 adds another 33.66%. Comp.3 captures only 21.99% of the variance, meaning it consists of details that are less important. We can reduce the data by focusing on Comp.1 and Comp. 2, keeping most of the important information for the analysis.
+
+
+We create a biplot for the first two principal components:
+```{r}
+biplot(pca, main = "Biplot of the First Two Principal Components")
+```
+Interpretation: 
+
+The biplot shows how the first two principal components capture most of the variation in the data. Comp.1 (x-axis) captures the largest variance, followed then by Comp2 (y-axis). Togheter these components capture the most important information in the data, allowing us to see relationships among observations and variables.
+
+The arrows labeled Frequency, Recency, and Monetary.mean show how much each original variable contributes to the principal components. Longer arrows indicate stronger contributions, while shorter arrows indicate less influence.
+
+Most customers (the points clustered near the center) are similar in terms of Frequency, Monetary.mean and Recency, as they are grouped together around the origin.
+
+The Monetary.mean arrow is the longest and points mostly along Comp.1. This means that the spending amount is the biggest factor in separating the customers into groups.
+
+The Recency arrow points more at Comp.2, showing that how recently customers made a purchase matters but is less important than spending. The customers that are positioned higher are likely to be the ones that made the most recent purchases.
+
+The Frequency arrow is the shortest, this means that it has the least influence in this biplot.
+
+## 2. Task
+In this task, we’ll be performing three clustering methods: k-means (using the elbow method to determine the optimal number of clusters), hierarchical clustering and DBSCAN. Then we will create biplots for each clustering method, with points colored according to the clusters generated.
+
+```{r}
+# Extract the first two principal component scores for visualization
+pca <- prcomp(rmf, scale. = TRUE)
+scores <- pca$x[, 1:2]
+```
+
+
+In this code chunk, we use the elbow method to determine the optimal number of clusters, k, for k-means clustering:
+```{r}
+wss <- sapply(1:10, function(k) {
+  kmeans(rmf, centers = k, nstart = 10)$tot.withinss
+})
+
+
+# Plot the elbow plot to visualize optimal k
+plot(1:10, wss, type = "b", main = "Elbow Method for Optimal K", xlab = "Number of Clusters", ylab = "Within-Cluster Sum of Squares")
+
+```
+Interpretations:
+
+The plot shows the within-cluster sum of squares (WSS) for different values of k (number of clusters).
+
+The main objective is to find a balance where increasing further the number of clusters does not significantly reduce the WSS, which indicates an optimal clustering structure.
+
+In this particular plot, we can observe that there is a strong decrease at around k = 3. After this value, the rate of WSS reduction slows, which means that adding more clusters results in only minor improvements to the clustering quality. 
+
+In this case the elbow is at k = 3, suggesting that 3 clusters may be a good choice for clear and simple clustering.
+
+
+
+After we identified the optimal number of clusters from the elbow plot, we now perform the k-means clustering with k = 3:
+```{r}
+set.seed(123)
+optimal_k <- 3
+kmeans_result <- kmeans(rmf, centers = optimal_k, nstart = 10)
+
+# Plot the k-means clustering result on the PCA biplot
+plot(scores, col = kmeans_result$cluster, pch = 20, main = "K-means Clustering Biplot")
+legend("topright", legend = unique(kmeans_result$cluster), col = unique(kmeans_result$cluster), pch = 19)
+```
+Interpretations:
+
+The three clusters in the biplot represent distinct groups of customers based on their purchasing behavior. We can see some overlap between Cluster 1 (black) and Cluster 2 (red), which suggests that these groups might share some similar characteristics.
+
+Cluster 1 (black): 
+This group is more packed near the center and slightly spreads towards negative values on PC1. This cluster likely represents moderate frequent buyers who spend moderate amounts. They may not have purchased very recently, but their purchasing behavior is consistent and regular.
+
+Cluster 2 (red):
+This cluster is located above Cluster 1 and may represent somewhat frequent buyers who might have purchased more recently or less on average per transaction than in Cluster 1. These customers share traits with Cluster 1 but have slight differences, potentially in recency or spending.
+
+Cluster 3 (green):
+This cluster appears more scattered below Cluster 1, suggesting buyers with unique or varied purchasing behavior. They may differ from other customers more significantly, possibly by spending more irregularly or making larger purchases on rare occasions.
+
+Average values of each RFM attributes for each cluster:
+```{r}
+# Calculate the mean values of RFM attributes for each cluster
+cluster_summary <- aggregate(rmf, by = list(Cluster = kmeans_result$cluster), FUN = mean)
+print(cluster_summary)
+```
+Taking a look at the averages within the clusters confirms the interpretation from above:
+Cluster 1: moderate purchase frequency, moderate monetary.mean, low recency
+Cluster 2: high frequency, low monetary.mean, moderate recency
+Cluster 3: low frequency, high monetary.mean and high recency
+
+Let us check also the principal components loadings to understand which RFM attribute influences each component tge most:
+```{r}
+# View the loadings to understand PC1 and PC2
+loadings <- pca$rotation[, 1:2]
+print(loadings)
+```
+PC1:
+
+Frequency has a strong negative loading on PC1 (-0.71), which means that higher values of PC1 correspond to lower Frequency. So customers with high PC1 score tend to buy less frequently. Lower values of PC1 would be the opposite, so they correspond to higher Frequency, which means: customers with low PC1 score tend to buy more frequently
+
+Monetary.mean has a very low loading on PC1 (-0.03), which means it has little influence on it.
+
+Recency has a strong positive loading on PC1 (0.71), which means that low PC1 values tend to have low Recency and higher Frequency.
+
+PC2:
+
+Frequency and Recency have both a low loading on PC2, the values being 0.14 (Frequency) and 0.10(Recency), indicating little influence.
+
+Monetary.mean has a high negative load on PC2, meaning that a low PC2 value represents a high Monetary.mean.
+
+
+
+We are going to perform the hierarchical clustering and plot the dendogram:
+```{r}
+
+# Calculate the distance matrix and perform hierarchical clustering
+dist_matrix <- dist(rmf)
+hclust_result <- hclust(dist_matrix, method = "complete")
+
+# Plot the dendrogram and cut into the chosen number of clusters k = 3
+plot(hclust_result, main = "Dendrogram")
+rect.hclust(hclust_result, k = optimal_k, border = "red")
+```
+Interpretation:
+The red line serves as a cut-off point for forming clusters. Based on this line we see that we have 3 main clusters:
+
+Cluster 1: The largest grouping at the bottom, which might represent a core segment of customers with similar purchasing patterns.
+
+Cluster 2 and Cluster 3: These clusters branch out at a higher level, indicating they are more distinct from the rest of the data and possibly represent unique customer segments.
+
+
+
+We assign clusters based on the dendrogram cut and plot hierarchical clustering result on the PCA biplot:
+```{r}
+# Assign clusters based on the dendrogram cut and plot hierarchical clustering result on the PCA biplot
+hclust_result <- hclust(dist_matrix, method = "complete")
+h_clusters <- cutree(hclust_result, k = optimal_k)
+plot(scores, col = h_clusters, pch = 20, main = "Hierarchical Clustering Biplot")
+legend("topright", legend = unique(h_clusters), col = unique(h_clusters), pch = 19)
+
+```
+Interpretation:
+
+The hierarchical clustering biplot shows the results of assigning clusters from the dendrogram onto the principal component (PCA) space.
+
+Cluster 1 (black): This is the largest cluster, likely representing the majority of customers who share similar purchasing behaviors in terms of Frequency and Recency. There may be small differences among individuals within this cluster, but overall, their behavior is consistent.
+
+Cluster 2 (red): This cluster represents customers who differ in their spending patterns. These customers may have distinct spending behaviors, possibly spending more or differently than those in Cluster 1.
+
+Cluster 3 (green): Located further below and slightly separated from the other clusters, this small group likely consists of high-value or unique customers with purchasing behaviors that differ significantly from the others.
+
+The separation seen in the biplot reflects the structure observed in the dendrogram, with one large, central cluster (Cluster 1) and two smaller, more distinct clusters (Clusters 2 and 3).
+
+
+
+The next code snippet applies DBSCAN (Density-Based Spatial Clustering of Applications with Noise) to the dataset and visualizes the results on a PCA biplot:
+```{r}
+# Step 3: DBSCAN clustering on the original dataset
+rmf_scaled <- scale(rmf)
+dbscan_result <- dbscan(rmf_scaled, eps = 1.0, minPts = 5)  # Adjust eps and minPts as needed
+
+
+
+# Plot DBSCAN clustering result on the PCA biplot
+plot(scores, pch = 20, xlim = 1.5 * range(scores[, 1]), ylim = 1.3 * range(scores[, 2]),
+     col = dbscan_result$cluster + 1, main = "DBSCAN Clustering Biplot")
+legend("topright", legend = unique(dbscan_result$cluster), col = unique(dbscan_result$cluster + 1), pch = 20)
+
+
+```
+
+Interpretation:
+
+The plot shows two groups labeled as 1 (in pink) and 0 (in black). Label 1 represents core points, indicating customers with similar RFM attributes, while label 0 represents outliers—customers with different purchasing patterns that don't fit within the main cluster.
+
+The dense pink cluster likely represents regular customers who purchase frequently or with moderate spending amounts. In contrast, the black points (noise) represent customers who don't purchase as often or have unique spending patterns, which don't align with the main cluster's typical behavior.
+
+
+Conlcusions:
+
+Each clustering method gave us different insights: k-means helped identify clear, separate groups; hierarchical clustering showed smaller groups within larger ones and DBSCAN was useful for spotting unusual customers who didn’t fit into any main group.
+
+
+## 3. Task
+
+We chose DBSCAN as the clustering algorithm because it does a good job of recognizing outliers, which we noticed early on in the data summary. When we first looked at the data, we saw some unusual spending patterns and buying behaviors that suggested certain customers didn’t fit the typical pattern. This indicated the presence of outliers—customers with unique or irregular purchasing habits. DBSCAN is especially good at handling this type of data because it can mark these unique customers as "noise," meaning we don’t have to fit them into the main clusters where they don’t really belong.
+
+DBSCAN has the ability to identify clusters with different shapes, without requiring the number of clusters to be specified in advance. This is helpful in our case because customer behavior doesn't necessarily form round groups. For instance, some customers make purchases in bursts, while others show a more steady purchasing pattern over time. Other clustering methods, like k-means, assume that clusters are compact and round, which doesn’t work well with this kind of data. DBSCAN, on the other hand, is based on data density and can pick up on these varied patterns, making it a better fit for capturing the diversity in how customers behave.
+
+We tried out different values for the hyperparameters, eps and minPts, to find the best ones. The values that worked best were eps = 1.0 and minPts = 5, which gave us two clear clusters. These settings allowed us to group together customers with similar behaviors and kept out any points that didn’t really fit.
+
+Using these values for the hyperparameters, the final grouping of our data reveals two distinct customer segments:
+
+Cluster 1, the "representative" customer segment, with steady buying patterns and moderate spending amounts.
+
+Cluster 0 , the outliers, representing customers with unique spending patterns that don’t fit into the main cluster.
+
+
+Here we calculate the average values of RFM attributes for each cluster:
+```{r}
+cluster_summary <- aggregate(rmf, by = list(Cluster = dbscan_result$cluster), FUN = mean)
+print(cluster_summary)
+```
+Cluster 0 (Outliers):
+
+Frequency: Although this group has a higher average Frequency, it doesn’t necessarily  mean they buy more regularly than the main customers. The higher Recency suggests they aren’t making purchases as consistently over time. Instead, they may buy in bursts, making several purchases within short periods and then going quiet for a while.
+
+Monetary.mean: The average spending in this group is much higher than in Cluster 1, indicating that when these customers do make purchases, they spend a lot more.
+
+Recency: This group has a higher average Recency, meaning they don’t buy as frequently as the core customers. They buy less often overall, even though some might make multiple purchases close together.
+
+In summary, this cluster represents the infrequent but high-spending customer segment. They don't purchase as often, but when they do, they spend a lot more and likely buy in bursts rather than having a steady transaction pattern.
+
+Cluster 1 (representative customers):
+
+Frequency: Customers in this cluster make purchases somewhat regularly, representing a steady purchasing pattern.
+
+Monetary.mean: With an average spending of 299, these customers represent a moderate spending profile, without making particularly large purchases each time.
+
+Recency: These customers made their last purchase around 90 days ago, on average. This indicates they’re somewhat engaged, with a moderate level of recent activity
+
+In summary, this cluster represents the main customer who doesn't spend a large amount of money but maintains a steady purchasing pattern.
